@@ -4,7 +4,7 @@ import { seasonConfig } from "@/lib/constants";
 import { getFtcApiEnv } from "@/lib/env";
 import type { FtcEvent, FtcMatch, FtcRanking, FtcTeam } from "@/lib/types";
 
-const FTC_API_ROOT = "https://ftc-events.firstinspires.org/v2.0";
+const FTC_API_ROOT = "https://ftc-api.firstinspires.org/v2.0";
 
 type FtcEventResponse = {
   events?: FtcEvent[] | null;
