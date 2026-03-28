@@ -60,12 +60,22 @@ export default async function EntryPage({ params }: EntryPageProps) {
         </SectionCard>
       ) : null}
 
+      {data.entry.isLocked ? (
+        <SectionCard className="mb-6">
+          <p className="text-sm text-amber-100">
+            Entries are locked because the first Worlds qualification matches have started.
+          </p>
+        </SectionCard>
+      ) : null}
+
       <EntryBuilder
         championPickTeamNumber={data.entry.championPickTeamNumber}
         defaultEntryName={data.entry.entryName}
+        divisionStatus={data.seasonPool.season.divisionStatus}
         divisions={data.seasonPool.divisions}
         entryId={data.entry.entryId}
         invalidReason={data.entry.invalidReason}
+        isLocked={data.entry.isLocked}
         leagueCode={data.entry.leagueCode}
         leagueId={data.entry.leagueId}
         selectedTeamNumbers={data.entry.selectedTeamNumbers}
@@ -74,4 +84,3 @@ export default async function EntryPage({ params }: EntryPageProps) {
     </main>
   );
 }
-

@@ -159,32 +159,16 @@ export async function joinLeagueAction(
   }
 
   const { data: league, error } = await auth.supabase
-    .from("leagues")
-    .select("id, invite_code")
-    .eq("invite_code", inviteCode)
+    .rpc("join_league_with_invite", { target_invite_code: inviteCode })
     .maybeSingle();
+  const joinedLeague = league as { invite_code: string } | null;
 
-  if (error) {
-    return { message: error.message, status: "error" };
-  }
-
-  if (!league) {
-    return { message: "Invite code not found.", status: "error" };
-  }
-
-  const { error: memberError } = await auth.supabase.from("league_members").upsert({
-    joined_at: new Date().toISOString(),
-    league_id: league.id,
-    role: "member",
-    user_id: auth.user.id,
-  });
-
-  if (memberError) {
-    return { message: memberError.message, status: "error" };
+  if (error || !joinedLeague) {
+    return { message: error?.message ?? "Invite code not found.", status: "error" };
   }
 
   revalidatePath("/dashboard");
-  redirect(`/leagues/${league.invite_code}`);
+  redirect(`/leagues/${joinedLeague.invite_code}`);
 }
 
 export async function joinLeagueDirectAction(formData: FormData) {
@@ -211,9 +195,17 @@ export async function createOrOpenEntryAction(
     return { message: auth.error ?? "Sign in required.", status: "error" };
   }
 
+  const seasonPool = await getSeasonPool();
+  if (seasonPool.season.entriesLockedAt) {
+    return {
+      message: "Entries are locked because Worlds qualification matches have started.",
+      status: "error",
+    };
+  }
+
   const { data: existingEntry, error: existingError } = await auth.supabase
     .from("entries")
-    .select("id")
+    .select("id, locked_at")
     .eq("league_id", leagueId)
     .eq("user_id", auth.user.id)
     .maybeSingle();
@@ -291,9 +283,39 @@ export async function saveEntryAction(
   }
 
   const seasonPool = await getSeasonPool();
+  if (seasonPool.season.entriesLockedAt) {
+    return {
+      message: "Entries are locked because Worlds qualification matches have started.",
+      status: "error",
+    };
+  }
+
   if (!seasonPool.teams.length || !seasonPool.divisions.every((division) => division.id)) {
     return {
       message: "Run the roster sync first so division records exist in Supabase.",
+      status: "error",
+    };
+  }
+
+  const { data: existingEntry, error: entryLookupError } = await auth.supabase
+    .from("entries")
+    .select("id, locked_at")
+    .eq("id", entryId)
+    .eq("league_id", leagueId)
+    .eq("user_id", auth.user.id)
+    .maybeSingle();
+
+  if (entryLookupError) {
+    return { message: entryLookupError.message, status: "error" };
+  }
+
+  if (!existingEntry) {
+    return { message: "Entry not found.", status: "error" };
+  }
+
+  if (existingEntry.locked_at) {
+    return {
+      message: "This entry is already locked and can no longer be edited.",
       status: "error",
     };
   }

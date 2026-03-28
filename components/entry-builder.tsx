@@ -13,9 +13,11 @@ const initialState: ActionState = { status: "idle" };
 type EntryBuilderProps = {
   championPickTeamNumber?: number | null;
   defaultEntryName: string;
+  divisionStatus: "official" | "provisional";
   divisions: DivisionGroup[];
   entryId: string;
   invalidReason?: string | null;
+  isLocked: boolean;
   leagueCode: string;
   leagueId: string;
   selectedTeamNumbers: number[];
@@ -25,9 +27,11 @@ type EntryBuilderProps = {
 export function EntryBuilder({
   championPickTeamNumber,
   defaultEntryName,
+  divisionStatus,
   divisions,
   entryId,
   invalidReason,
+  isLocked,
   leagueCode,
   leagueId,
   selectedTeamNumbers,
@@ -55,9 +59,16 @@ export function EntryBuilder({
   }, {});
 
   const canSave =
+    !isLocked &&
     selected.length === seasonConfig.rosterPickCount &&
     divisions.every((division) => divisionCounts[division.code] === seasonConfig.teamsPerDivision) &&
     championPick !== null;
+
+  const statusMessage = isLocked
+    ? "Entries are locked because Worlds qualification matches have started."
+    : divisionStatus === "official" && invalidReason
+      ? "Official divisions are live. Rebalance this roster before the lock hits."
+      : null;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -74,6 +85,7 @@ export function EntryBuilder({
           <span className="text-sm uppercase tracking-[0.2em] text-white/58">Roster name</span>
           <input
             className="w-full rounded-2xl border border-white/14 bg-white/6 px-4 py-3 text-white outline-none focus:border-cyan-300/50"
+            disabled={isLocked}
             name="entryName"
             onChange={(event) => setEntryName(event.target.value)}
             value={entryName}
@@ -120,9 +132,13 @@ export function EntryBuilder({
                       <input
                         checked={checked}
                         className="sr-only"
-                        disabled={disableUnchecked}
+                        disabled={isLocked || disableUnchecked}
                         name={`toggle-${team.teamNumber}`}
                         onChange={() => {
+                          if (isLocked) {
+                            return;
+                          }
+
                           setSelected((current) => {
                             if (current.includes(team.teamNumber)) {
                               const next = current.filter((value) => value !== team.teamNumber);
@@ -172,6 +188,7 @@ export function EntryBuilder({
                 "w-full justify-center sm:w-auto",
                 !canSave && "cursor-not-allowed opacity-60",
               )}
+              disabled={!canSave}
               idleLabel="Save entry"
               pendingLabel="Saving entry"
             />
@@ -183,6 +200,8 @@ export function EntryBuilder({
             <p className={state.status === "error" ? "mt-3 text-sm text-amber-200" : "mt-3 text-sm text-emerald-200"}>
               {state.message}
             </p>
+          ) : statusMessage ? (
+            <p className="mt-3 text-sm text-amber-200">{statusMessage}</p>
           ) : invalidReason ? (
             <p className="mt-3 text-sm text-amber-200">{invalidReason}</p>
           ) : null}
@@ -222,6 +241,7 @@ export function EntryBuilder({
                   <input
                     checked={championPick === team!.teamNumber}
                     className="h-4 w-4 accent-amber-300"
+                    disabled={isLocked}
                     name="champion-display"
                     onChange={() => setChampionPick(team!.teamNumber)}
                     type="radio"
@@ -238,4 +258,3 @@ export function EntryBuilder({
     </div>
   );
 }
-

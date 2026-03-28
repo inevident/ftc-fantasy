@@ -71,15 +71,36 @@ export default async function DashboardPage() {
               </p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <p className="eyebrow">Last sync</p>
+              <p className="eyebrow">Roster sync</p>
               <p className="mt-3 text-lg font-semibold text-white">
-                {formatTimestamp(dashboard.seasonPool.season.latestSync?.finishedAt)}
+                {formatTimestamp(dashboard.seasonPool.season.latestRosterSync?.finishedAt)}
               </p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <p className="eyebrow">Roster lock</p>
+              <p className="eyebrow">Scoring sync</p>
               <p className="mt-3 text-lg font-semibold text-white">
-                Relock after official divisions
+                {formatTimestamp(dashboard.seasonPool.season.latestScoringSync?.finishedAt)}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="eyebrow">Entry lock</p>
+              <p className="mt-3 text-lg font-semibold text-white">
+                {dashboard.seasonPool.season.entriesLockedAt ? "Locked" : "Open"}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="eyebrow">Official divisions</p>
+              <p className="mt-3 text-lg font-semibold text-white">
+                {formatTimestamp(dashboard.seasonPool.season.officialDivisionsPublishedAt)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="eyebrow">Lock mode</p>
+              <p className="mt-3 text-sm font-semibold text-white">
+                {dashboard.seasonPool.season.lockMode}
               </p>
             </div>
           </div>
@@ -87,6 +108,12 @@ export default async function DashboardPage() {
           {dashboard.setupMessage || dashboard.seasonPool.message ? (
             <div className="rounded-2xl border border-amber-300/24 bg-amber-300/10 p-4 text-sm text-amber-100">
               {dashboard.setupMessage ?? dashboard.seasonPool.message}
+            </div>
+          ) : null}
+
+          {typeof dashboard.seasonPool.season.latestScoringSync?.metadata?.message === "string" ? (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/68">
+              {dashboard.seasonPool.season.latestScoringSync.metadata.message}
             </div>
           ) : null}
         </SectionCard>
@@ -165,4 +192,3 @@ export default async function DashboardPage() {
     </main>
   );
 }
-

@@ -9,6 +9,7 @@ import {
   fetchEventRankings,
   fetchSeasonEvents,
 } from "@/lib/ftc/client";
+import { getQualificationLockTimestamp } from "@/lib/ftc/match-state";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type {
   DivisionGroup,
@@ -19,6 +20,8 @@ import type {
   TeamPool,
   TeamPoolSyncResult,
 } from "@/lib/types";
+
+type AdminClient = NonNullable<ReturnType<typeof createAdminClient>>;
 
 function mapFtcTeams(teams: FtcTeam[]): QualifiedTeam[] {
   return [...teams]
@@ -164,7 +167,7 @@ export async function resolveLiveTeamPool() {
   return createSeasonPool(buildProvisionalTeamPool(baseTeams), "live-preview");
 }
 
-async function createSyncRun(admin: NonNullable<ReturnType<typeof createAdminClient>>, syncType: "roster" | "scoring") {
+async function createSyncRun(admin: AdminClient, syncType: "roster" | "scoring") {
   const { data, error } = await admin
     .from("sync_runs")
     .insert({
@@ -184,7 +187,7 @@ async function createSyncRun(admin: NonNullable<ReturnType<typeof createAdminCli
 }
 
 async function finishSyncRun(
-  admin: NonNullable<ReturnType<typeof createAdminClient>>,
+  admin: AdminClient,
   syncRunId: string,
   payload: {
     errorMessage?: string;
@@ -206,9 +209,20 @@ async function finishSyncRun(
 }
 
 async function storeSeasonPool(
-  admin: NonNullable<ReturnType<typeof createAdminClient>>,
+  admin: AdminClient,
   syncResult: TeamPoolSyncResult,
 ) {
+  const nowIso = new Date().toISOString();
+  const { data: existingSeason, error: existingSeasonError } = await admin
+    .from("seasons")
+    .select("official_divisions_published_at, entries_locked_at")
+    .eq("id", seasonConfig.id)
+    .maybeSingle();
+
+  if (existingSeasonError) {
+    throw existingSeasonError;
+  }
+
   await admin.from("qualified_teams").delete().eq("season_id", seasonConfig.id);
   await admin.from("division_groups").delete().eq("season_id", seasonConfig.id);
 
@@ -218,13 +232,17 @@ async function storeSeasonPool(
       config: seasonConfig,
       division_count: seasonConfig.divisionCount,
       division_status: syncResult.hasOfficialAssignments ? "official" : "provisional",
+      entries_locked_at: (existingSeason?.entries_locked_at as string | null) ?? null,
       event_code: seasonConfig.eventCode,
       id: seasonConfig.id,
       label: seasonConfig.eventName,
       lock_mode: seasonConfig.lockMode,
+      official_divisions_published_at:
+        (existingSeason?.official_divisions_published_at as string | null) ??
+        (syncResult.hasOfficialAssignments ? nowIso : null),
       scoring_preset: seasonConfig.scoringPreset,
       teams_per_division: seasonConfig.teamsPerDivision,
-      updated_at: new Date().toISOString(),
+      updated_at: nowIso,
     },
     { onConflict: "id" },
   );
@@ -353,6 +371,51 @@ async function storeSeasonPool(
   );
 }
 
+async function lockSeasonEntriesIfNeeded(admin: AdminClient, lockTimestamp: string | null) {
+  const { data: seasonRow, error: seasonError } = await admin
+    .from("seasons")
+    .select("entries_locked_at")
+    .eq("id", seasonConfig.id)
+    .maybeSingle();
+
+  if (seasonError) {
+    throw seasonError;
+  }
+
+  const existingLockTimestamp = (seasonRow?.entries_locked_at as string | null) ?? null;
+  if (existingLockTimestamp || !lockTimestamp) {
+    return existingLockTimestamp;
+  }
+
+  const { error: seasonUpdateError } = await admin
+    .from("seasons")
+    .update({
+      entries_locked_at: lockTimestamp,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", seasonConfig.id)
+    .is("entries_locked_at", null);
+
+  if (seasonUpdateError) {
+    throw seasonUpdateError;
+  }
+
+  const { error: entryUpdateError } = await admin
+    .from("entries")
+    .update({
+      locked_at: lockTimestamp,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("season_id", seasonConfig.id)
+    .is("locked_at", null);
+
+  if (entryUpdateError) {
+    throw entryUpdateError;
+  }
+
+  return lockTimestamp;
+}
+
 function scoreBreakdownRows(
   breakdownMap: Map<number, ScoreBreakdown[]>,
   entryId: string,
@@ -456,18 +519,38 @@ export async function runScoringSync(options?: { dryRun?: boolean }) {
 
   const livePool = options?.dryRun ? divisionPool : await resolveLiveTeamPool();
   const officialDivisions = livePool.divisions.filter((division) => division.officialEventCode);
+  const waitingMessage = "Official divisions have not been published yet.";
 
   if (!officialDivisions.length) {
+    if (options?.dryRun) {
+      return {
+        itemCount: 0,
+        metadata: {
+          message: waitingMessage,
+        },
+        persisted: false,
+      };
+    }
+
+    const syncRunId = await createSyncRun(admin!, "scoring");
+    await finishSyncRun(admin!, syncRunId, {
+      itemCount: 0,
+      metadata: {
+        message: waitingMessage,
+      },
+      status: "success",
+    });
+
     return {
       itemCount: 0,
       metadata: {
-        message: "Official divisions have not been published yet.",
+        message: waitingMessage,
       },
-      persisted: false,
+      persisted: true,
     };
   }
 
-  const divisionScoreMaps = await Promise.all(
+  const divisionResults = await Promise.all(
     officialDivisions.map(async (division) => {
       const eventCode = division.officialEventCode!;
       const [rankings, matches] = await Promise.all([
@@ -475,8 +558,15 @@ export async function runScoringSync(options?: { dryRun?: boolean }) {
         fetchEventMatches(eventCode),
       ]);
 
-      return scoreDivision(rankings, matches);
+      return {
+        eventCode,
+        matches,
+        scoreMap: scoreDivision(rankings, matches),
+      };
     }),
+  );
+  const qualificationLockTimestamp = getQualificationLockTimestamp(
+    divisionResults.flatMap((division) => division.matches),
   );
 
   const bonusEvents = await detectBonusEvents();
@@ -490,7 +580,10 @@ export async function runScoringSync(options?: { dryRun?: boolean }) {
     bonusMaps.push(scoreFinalRound(await fetchEventMatches(bonusEvents.finalsEventCode), "champion"));
   }
 
-  const mergedScores = mergeScoreMaps(...divisionScoreMaps, ...bonusMaps);
+  const mergedScores = mergeScoreMaps(
+    ...divisionResults.map((division) => division.scoreMap),
+    ...bonusMaps,
+  );
 
   if (options?.dryRun) {
     return {
@@ -498,6 +591,7 @@ export async function runScoringSync(options?: { dryRun?: boolean }) {
       metadata: {
         daVinciEventCode: bonusEvents.daVinciEventCode,
         finalsEventCode: bonusEvents.finalsEventCode,
+        qualificationLockTimestamp,
       },
       persisted: false,
     };
@@ -559,11 +653,14 @@ export async function runScoringSync(options?: { dryRun?: boolean }) {
       }
     }
 
+    const appliedLockTimestamp = await lockSeasonEntriesIfNeeded(admin!, qualificationLockTimestamp);
+
     await finishSyncRun(admin!, syncRunId, {
       itemCount: ledgerRows.length,
       metadata: {
         daVinciEventCode: bonusEvents.daVinciEventCode,
         finalsEventCode: bonusEvents.finalsEventCode,
+        qualificationLockTimestamp: appliedLockTimestamp,
       },
       status: "success",
     });
@@ -573,6 +670,7 @@ export async function runScoringSync(options?: { dryRun?: boolean }) {
       metadata: {
         daVinciEventCode: bonusEvents.daVinciEventCode,
         finalsEventCode: bonusEvents.finalsEventCode,
+        qualificationLockTimestamp: appliedLockTimestamp,
       },
       persisted: true,
     };

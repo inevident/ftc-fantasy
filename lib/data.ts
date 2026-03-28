@@ -11,6 +11,7 @@ import type {
   LeaderboardRow,
   QualifiedTeam,
   ScoreBreakdown,
+  SyncRunSummary,
   TeamPool,
 } from "@/lib/types";
 import { createClient } from "@/utils/supabase/server";
@@ -31,6 +32,35 @@ function createEmptyPool(message?: string): TeamPool {
     season: createBaseSeasonSnapshot(),
     source: "none",
     teams: [],
+  };
+}
+
+function toSyncSummary(
+  row:
+    | {
+        error_message?: string | null;
+        finished_at?: string | null;
+        item_count?: number | null;
+        metadata?: Record<string, unknown> | null;
+        started_at: string;
+        status: "error" | "running" | "success";
+        sync_type: "roster" | "scoring";
+      }
+    | null
+    | undefined,
+): SyncRunSummary | null {
+  if (!row) {
+    return null;
+  }
+
+  return {
+    errorMessage: row.error_message ?? null,
+    finishedAt: row.finished_at ?? null,
+    itemCount: row.item_count ?? 0,
+    metadata: row.metadata ?? null,
+    startedAt: row.started_at,
+    status: row.status,
+    syncType: row.sync_type,
   };
 }
 
@@ -57,9 +87,9 @@ async function getDatabaseSeasonPool(): Promise<TeamPool | null> {
       .from("sync_runs")
       .select("*")
       .eq("season_id", seasonConfig.id)
+      .in("sync_type", ["roster", "scoring"])
       .order("started_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+      .limit(20),
   ]);
 
   const firstError =
@@ -112,7 +142,35 @@ async function getDatabaseSeasonPool(): Promise<TeamPool | null> {
   }
 
   const seasonRow = seasonResponse.data;
-  const syncRow = syncResponse.data;
+  const syncRows = syncResponse.data ?? [];
+  const latestRosterRow = syncRows.find((row) => row.sync_type === "roster");
+  const latestScoringRow = syncRows.find((row) => row.sync_type === "scoring");
+  const latestRosterSync = toSyncSummary(
+    latestRosterRow
+      ? {
+          error_message: (latestRosterRow.error_message as string | null) ?? null,
+          finished_at: (latestRosterRow.finished_at as string | null) ?? null,
+          item_count: (latestRosterRow.item_count as number | null) ?? 0,
+          metadata: (latestRosterRow.metadata as Record<string, unknown> | null) ?? null,
+          started_at: latestRosterRow.started_at as string,
+          status: latestRosterRow.status as "error" | "running" | "success",
+          sync_type: "roster",
+        }
+      : null,
+  );
+  const latestScoringSync = toSyncSummary(
+    latestScoringRow
+      ? {
+          error_message: (latestScoringRow.error_message as string | null) ?? null,
+          finished_at: (latestScoringRow.finished_at as string | null) ?? null,
+          item_count: (latestScoringRow.item_count as number | null) ?? 0,
+          metadata: (latestScoringRow.metadata as Record<string, unknown> | null) ?? null,
+          started_at: latestScoringRow.started_at as string,
+          status: latestScoringRow.status as "error" | "running" | "success",
+          sync_type: "scoring",
+        }
+      : null,
+  );
 
   return {
     divisions,
@@ -121,21 +179,15 @@ async function getDatabaseSeasonPool(): Promise<TeamPool | null> {
       divisionCount: (seasonRow?.division_count as number) ?? seasonConfig.divisionCount,
       divisionStatus:
         ((seasonRow?.division_status as "official" | "provisional") ?? "provisional"),
+      entriesLockedAt: (seasonRow?.entries_locked_at as string | null) ?? null,
       entryPickCount: seasonConfig.rosterPickCount,
       eventCode: (seasonRow?.event_code as string) ?? seasonConfig.eventCode,
       label: (seasonRow?.label as string) ?? seasonConfig.eventName,
-      latestSync: syncRow
-        ? {
-            errorMessage: (syncRow.error_message as string | null) ?? null,
-            finishedAt: (syncRow.finished_at as string | null) ?? null,
-            itemCount: (syncRow.item_count as number) ?? 0,
-            metadata: (syncRow.metadata as Record<string, unknown> | null) ?? null,
-            startedAt: syncRow.started_at as string,
-            status: syncRow.status as "error" | "running" | "success",
-            syncType: syncRow.sync_type as "roster" | "scoring",
-          }
-        : null,
+      latestRosterSync,
+      latestScoringSync,
       lockMode: (seasonRow?.lock_mode as string) ?? seasonConfig.lockMode,
+      officialDivisionsPublishedAt:
+        (seasonRow?.official_divisions_published_at as string | null) ?? null,
       source: "database",
       teamCount: teams.length,
       teamsPerDivision: (seasonRow?.teams_per_division as number) ?? seasonConfig.teamsPerDivision,
@@ -368,9 +420,9 @@ export async function loadLeaguePageData(leagueCode: string, userId: string): Pr
   }
 
   const leagueResponse = await supabase
-    .from("leagues")
-    .select("id, invite_code, name")
-    .eq("invite_code", leagueCode.toUpperCase())
+    .rpc("get_league_preview_by_invite", {
+      target_invite_code: leagueCode.toUpperCase(),
+    })
     .maybeSingle();
 
   if (leagueResponse.error) {
@@ -385,11 +437,18 @@ export async function loadLeaguePageData(leagueCode: string, userId: string): Pr
     return { kind: "missing", seasonPool };
   }
 
-  const league = leagueResponse.data;
+  const league = leagueResponse.data as
+    | { invite_code: string; league_id: string; name: string }
+    | null;
+
+  if (!league) {
+    return { kind: "missing", seasonPool };
+  }
+
   const membershipResponse = await supabase
     .from("league_members")
     .select("user_id, role, joined_at")
-    .eq("league_id", league.id);
+    .eq("league_id", league.league_id);
 
   if (membershipResponse.error) {
     if (isMissingTableError(membershipResponse.error)) {
@@ -423,13 +482,13 @@ export async function loadLeaguePageData(leagueCode: string, userId: string): Pr
       kind: "ready",
       league: {
         currentUserEntryId: null,
-        entryLocked: false,
-        id: league.id as string,
-        inviteCode: league.invite_code as string,
+        entryLocked: Boolean(seasonPool.season.entriesLockedAt),
+        id: league.league_id,
+        inviteCode: league.invite_code,
         isMember: false,
         leaderboard: [],
-        members,
-        name: league.name as string,
+        members: [],
+        name: league.name,
       },
       seasonPool,
     };
@@ -439,8 +498,11 @@ export async function loadLeaguePageData(leagueCode: string, userId: string): Pr
     supabase
       .from("entries")
       .select("id, name, user_id, league_id, saved_at, is_valid, invalid_reason, champion_pick_team_number")
-      .eq("league_id", league.id),
-    supabase.from("score_ledgers").select("entry_id, team_number, points, source_key, source_type, payload").eq("league_id", league.id),
+      .eq("league_id", league.league_id),
+    supabase
+      .from("score_ledgers")
+      .select("entry_id, team_number, points, source_key, source_type, payload")
+      .eq("league_id", league.league_id),
   ]);
 
   if (entriesResponse.error || ledgerResponse.error) {
@@ -468,9 +530,9 @@ export async function loadLeaguePageData(leagueCode: string, userId: string): Pr
     kind: "ready",
     league: {
       currentUserEntryId: entries.find((entry) => entry.user_id === userId)?.id ?? null,
-      entryLocked: false,
-      id: league.id as string,
-      inviteCode: league.invite_code as string,
+      entryLocked: Boolean(seasonPool.season.entriesLockedAt),
+      id: league.league_id,
+      inviteCode: league.invite_code,
       isMember: true,
       leaderboard: buildLeaderboardRows({
         championWinningTeamNumbers,
@@ -486,7 +548,7 @@ export async function loadLeaguePageData(leagueCode: string, userId: string): Pr
         profiles: profileMap,
       }),
       members,
-      name: league.name as string,
+      name: league.name,
     },
     seasonPool,
   };
@@ -545,7 +607,7 @@ export async function loadEntryPageData(entryId: string, userId: string): Promis
       entryId: entryResponse.data.id as string,
       entryName: entryResponse.data.name as string,
       invalidReason: (entryResponse.data.invalid_reason as string | null) ?? null,
-      isLocked: Boolean(entryResponse.data.locked_at),
+      isLocked: Boolean(entryResponse.data.locked_at || seasonPool.season.entriesLockedAt),
       isValid: (entryResponse.data.is_valid as boolean | null) ?? true,
       leagueCode: league.invite_code,
       leagueId: entryResponse.data.league_id as string,

@@ -91,20 +91,38 @@ export default async function Home() {
               </span>
             </p>
             <p>
-              Last sync:{" "}
+              Roster sync:{" "}
               <span className="font-medium text-white">
-                {formatTimestamp(seasonPool.season.latestSync?.finishedAt)}
+                {formatTimestamp(seasonPool.season.latestRosterSync?.finishedAt)}
+              </span>
+            </p>
+            <p>
+              Scoring sync:{" "}
+              <span className="font-medium text-white">
+                {formatTimestamp(seasonPool.season.latestScoringSync?.finishedAt)}
               </span>
             </p>
             <p>
               Lock mode:{" "}
               <span className="font-medium text-white">{seasonPool.season.lockMode}</span>
             </p>
+            <p>
+              Entry lock:{" "}
+              <span className="font-medium text-white">
+                {seasonPool.season.entriesLockedAt ? "Locked" : "Open"}
+              </span>
+            </p>
           </div>
 
           {seasonPool.message ? (
             <div className="rounded-2xl border border-amber-300/24 bg-amber-300/10 p-4 text-sm text-amber-100">
               {seasonPool.message}
+            </div>
+          ) : null}
+
+          {typeof seasonPool.season.latestScoringSync?.metadata?.message === "string" ? (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/68">
+              {seasonPool.season.latestScoringSync.metadata.message}
             </div>
           ) : null}
 

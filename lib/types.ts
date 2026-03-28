@@ -53,12 +53,15 @@ export type SeasonSnapshot = {
   apiSeason: number;
   divisionCount: number;
   divisionStatus: DivisionStatus;
+  entriesLockedAt?: string | null;
   entryPickCount: number;
   eventCode: string;
   label: string;
-  latestSync: SyncRunSummary | null;
+  latestRosterSync: SyncRunSummary | null;
+  latestScoringSync: SyncRunSummary | null;
   lockMode: string;
   note?: string;
+  officialDivisionsPublishedAt?: string | null;
   source: TeamPoolSource;
   teamCount: number;
   teamsPerDivision: number;

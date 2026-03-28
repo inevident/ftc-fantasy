@@ -9,6 +9,7 @@ const serverOnlyEnvSchema = publicSupabaseEnvSchema.extend({
   FTC_API_TOKEN: z.string().min(1).optional(),
   FTC_API_USERNAME: z.string().min(1).optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
+  SYNC_ROUTE_SECRET: z.string().min(1).optional(),
 });
 
 export function getPublicSupabaseEnv() {
@@ -50,6 +51,18 @@ export function getFtcApiEnv() {
   };
 }
 
+export function getSyncRouteSecretEnv() {
+  const parsed = serverOnlyEnvSchema.safeParse(process.env);
+
+  if (!parsed.success || !parsed.data.SYNC_ROUTE_SECRET) {
+    return null;
+  }
+
+  return {
+    secret: parsed.data.SYNC_ROUTE_SECRET,
+  };
+}
+
 export function hasSupabaseConfig() {
   return getPublicSupabaseEnv() !== null;
 }
@@ -63,6 +76,6 @@ export function getSetupChecklist() {
     !getPublicSupabaseEnv() && "Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY.",
     !getSupabaseServiceRoleEnv() && "Set SUPABASE_SERVICE_ROLE_KEY to enable persistent sync jobs.",
     !getFtcApiEnv() && "Set FTC_API_USERNAME and FTC_API_TOKEN to enable live Worlds sync.",
+    !getSyncRouteSecretEnv() && "Set SYNC_ROUTE_SECRET to protect the sync endpoints.",
   ].filter(Boolean) as string[];
 }
-

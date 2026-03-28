@@ -44,11 +44,14 @@ export function createBaseSeasonSnapshot(): SeasonSnapshot {
     apiSeason: seasonConfig.apiSeason,
     divisionCount: seasonConfig.divisionCount,
     divisionStatus: "provisional",
+    entriesLockedAt: null,
     entryPickCount: seasonConfig.rosterPickCount,
     eventCode: seasonConfig.eventCode,
     label: seasonConfig.eventName,
-    latestSync: null,
+    latestRosterSync: null,
+    latestScoringSync: null,
     lockMode: seasonConfig.lockMode,
+    officialDivisionsPublishedAt: null,
     source: "none",
     teamCount: 0,
     teamsPerDivision: seasonConfig.teamsPerDivision,
@@ -56,4 +59,3 @@ export function createBaseSeasonSnapshot(): SeasonSnapshot {
 }
 
 export const magicLinkRedirectPath = "/dashboard";
-

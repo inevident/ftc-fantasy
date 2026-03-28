@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { getSetupChecklist } from "@/lib/env";
+import { getSetupChecklist, getSyncRouteSecretEnv } from "@/lib/env";
 import { runRosterSync } from "@/lib/ftc/sync";
+import { isAuthorizedSyncRequest } from "@/lib/sync-route-auth";
 
 function parseDryRun(request: Request) {
   const url = new URL(request.url);
@@ -10,6 +11,7 @@ function parseDryRun(request: Request) {
 
 export async function GET() {
   return NextResponse.json({
+    authorization: "Bearer <SYNC_ROUTE_SECRET>",
     endpoint: "/api/sync/roster",
     methods: ["POST"],
     notes: getSetupChecklist(),
@@ -17,6 +19,25 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const syncSecret = getSyncRouteSecretEnv();
+  if (!syncSecret) {
+    return NextResponse.json(
+      {
+        error: "SYNC_ROUTE_SECRET is required before the roster sync can run.",
+      },
+      { status: 500 },
+    );
+  }
+
+  if (!isAuthorizedSyncRequest(request.headers.get("authorization"), syncSecret.secret)) {
+    return NextResponse.json(
+      {
+        error: "Unauthorized.",
+      },
+      { status: 401 },
+    );
+  }
+
   try {
     const result = await runRosterSync({ dryRun: parseDryRun(request) });
 
@@ -34,4 +55,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

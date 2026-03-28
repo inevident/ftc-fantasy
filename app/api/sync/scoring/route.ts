@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { getSetupChecklist } from "@/lib/env";
+import { getSetupChecklist, getSyncRouteSecretEnv } from "@/lib/env";
 import { runScoringSync } from "@/lib/ftc/sync";
+import { isAuthorizedSyncRequest } from "@/lib/sync-route-auth";
 
 function parseDryRun(request: Request) {
   const url = new URL(request.url);
@@ -10,6 +11,7 @@ function parseDryRun(request: Request) {
 
 export async function GET() {
   return NextResponse.json({
+    authorization: "Bearer <SYNC_ROUTE_SECRET>",
     endpoint: "/api/sync/scoring",
     methods: ["POST"],
     notes: getSetupChecklist(),
@@ -17,6 +19,25 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const syncSecret = getSyncRouteSecretEnv();
+  if (!syncSecret) {
+    return NextResponse.json(
+      {
+        error: "SYNC_ROUTE_SECRET is required before the scoring sync can run.",
+      },
+      { status: 500 },
+    );
+  }
+
+  if (!isAuthorizedSyncRequest(request.headers.get("authorization"), syncSecret.secret)) {
+    return NextResponse.json(
+      {
+        error: "Unauthorized.",
+      },
+      { status: 401 },
+    );
+  }
+
   try {
     const result = await runScoringSync({ dryRun: parseDryRun(request) });
 

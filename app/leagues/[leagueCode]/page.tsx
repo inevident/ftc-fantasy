@@ -52,12 +52,16 @@ export default async function LeaguePage({ params, searchParams }: LeaguePagePro
 
       {!data.league.isMember ? (
         <SectionCard className="max-w-2xl">
-          <p className="eyebrow">Join required</p>
-          <h2 className="mt-2 text-2xl font-semibold text-white">You have the code, but not the seat yet.</h2>
+          <p className="eyebrow">Invite preview</p>
+          <h2 className="mt-2 text-2xl font-semibold text-white">Join this private league to draft and score.</h2>
           <p className="mt-3 text-sm leading-7 text-white/66">
-            This league is private. Join with the invite code to view the leaderboard,
-            create an entry, and track roster validity after official divisions publish.
+            This invite code is valid. Join to view the live leaderboard, create an entry,
+            and track roster validity once the official division remap lands.
           </p>
+          <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/62">
+            <p>Division mode: <span className="font-semibold text-white">{data.seasonPool.season.divisionStatus}</span></p>
+            <p className="mt-1">Entry lock: <span className="font-semibold text-white">{data.league.entryLocked ? "locked" : "open"}</span></p>
+          </div>
           <form action={joinLeagueDirectAction} className="mt-6 space-y-4">
             <input name="inviteCode" type="hidden" value={data.league.inviteCode} />
             <SubmitButton idleLabel="Join this league" pendingLabel="Joining league" />
@@ -79,16 +83,20 @@ export default async function LeaguePage({ params, searchParams }: LeaguePagePro
                 </div>
                 <StatusPill
                   tone={
-                    data.seasonPool.season.divisionStatus === "official" ? "success" : "warning"
+                    data.league.entryLocked
+                      ? "muted"
+                      : data.seasonPool.season.divisionStatus === "official"
+                        ? "success"
+                        : "warning"
                   }
                 >
-                  {data.seasonPool.season.divisionStatus}
+                  {data.league.entryLocked ? "locked" : data.seasonPool.season.divisionStatus}
                 </StatusPill>
               </div>
               <p className="mt-3 text-sm leading-7 text-white/64">
-                Draft {data.seasonPool.season.entryPickCount} teams, keep exactly{" "}
-                {data.seasonPool.season.teamsPerDivision} in each division, and name a
-                champion tiebreak pick.
+                {data.league.entryLocked
+                  ? "Entries are locked. You can still review your roster and the leaderboard."
+                  : `Draft ${data.seasonPool.season.entryPickCount} teams, keep exactly ${data.seasonPool.season.teamsPerDivision} in each division, and name a champion tiebreak pick.`}
               </p>
 
               {data.league.currentUserEntryId ? (
@@ -99,7 +107,11 @@ export default async function LeaguePage({ params, searchParams }: LeaguePagePro
                 <form action={createOrOpenEntryDirectAction} className="mt-6">
                   <input name="leagueId" type="hidden" value={data.league.id} />
                   <input name="leagueCode" type="hidden" value={data.league.inviteCode} />
-                  <SubmitButton idleLabel="Create your entry" pendingLabel="Opening entry" />
+                  <SubmitButton
+                    disabled={data.league.entryLocked}
+                    idleLabel="Create your entry"
+                    pendingLabel="Opening entry"
+                  />
                 </form>
               )}
               {error ? (
