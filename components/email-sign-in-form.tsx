@@ -23,7 +23,7 @@ export function EmailSignInForm({ next = "/dashboard" }: { next?: string }) {
           type="email"
         />
       </label>
-      <SubmitButton className="w-full" idleLabel="Send magic link" pendingLabel="Sending link" />
+      <SubmitButton className="w-full" idleLabel="Send email link" pendingLabel="Sending email link" />
       {state.message ? (
         <p className={state.status === "error" ? "text-sm text-amber-200" : "text-sm text-emerald-200"}>
           {state.message}
@@ -32,4 +32,3 @@ export function EmailSignInForm({ next = "/dashboard" }: { next?: string }) {
     </form>
   );
 }
-

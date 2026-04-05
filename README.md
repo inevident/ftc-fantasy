@@ -4,7 +4,7 @@ Fantasy-style FTC game for the 2026 World Championship season.
 
 The app is a `Next.js` App Router project with:
 
-- `Supabase Auth` email magic-link sign-in
+- `Supabase Auth` OAuth sign-in with email fallback
 - private invite-code leagues
 - one active entry per user per league
 - six provisional divisions for the 2026 Worlds format
@@ -30,6 +30,15 @@ Copy `.env.example` into `.env.local` and provide:
 - `SYNC_ROUTE_SECRET`
 
 `SUPABASE_SERVICE_ROLE_KEY` is required for persistent sync jobs. `SYNC_ROUTE_SECRET` is required to call the protected sync endpoints. Without the service-role key, the UI can still fall back to a live FTC preview if the FTC credentials are present.
+
+## Auth Setup
+
+Enable Google in Supabase Auth before using the OAuth button on `/sign-in`.
+
+- `Auth` -> `Providers`
+- enable `Google`
+- set the Supabase callback URL provided in the dashboard at the provider
+- keep your local redirect URL pointed at `http://localhost:3000/auth/callback`
 
 ## Database Setup
 
@@ -118,7 +127,7 @@ The current test suite covers provisional division balancing, roster validation,
 
 1. Run both Supabase SQL migrations.
 2. Start the app with `npm run dev`.
-3. Sign in at `/sign-in` with a magic link.
+3. Sign in at `/sign-in` with Google OAuth or the email fallback.
 4. Create a league on `/dashboard`.
 5. Open the invite code in a second signed-in account and join the league.
 6. Create an entry and save a 12-team roster with one champion pick.

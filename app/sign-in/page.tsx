@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { EmailSignInForm } from "@/components/email-sign-in-form";
+import { OAuthSignInOptions } from "@/components/oauth-sign-in-options";
 import { SectionCard } from "@/components/section-card";
 import { StatusPill } from "@/components/status-pill";
 
@@ -18,22 +19,23 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
       <div className="grid min-h-[82vh] gap-6 lg:grid-cols-[1.05fr_0.95fr]">
         <SectionCard className="flex flex-col justify-between">
           <div className="space-y-6">
-            <StatusPill tone="accent">Email magic-link auth</StatusPill>
+            <StatusPill tone="accent">Google OAuth</StatusPill>
             <div className="space-y-4">
               <h1 className="max-w-xl text-5xl font-semibold tracking-[-0.05em] text-white">
                 Enter the Worlds fantasy control room.
               </h1>
               <p className="max-w-lg text-lg leading-8 text-white/68">
-                Sign in with email, create a private invite-code league, and build
-                a 12-team roster before official divisions drop.
+                Sign in or create your account with Google, create a private
+                invite-code league, and build a 12-team roster before official
+                divisions drop.
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                <p className="eyebrow">League flow</p>
+                <p className="eyebrow">Account flow</p>
                 <p className="mt-3 text-sm leading-7 text-white/66">
-                  One active entry per league, with shared live leaderboard scoring
-                  from official FTC results.
+                  Google OAuth handles both sign-in and sign-up, then Supabase creates
+                  the session and profile row automatically.
                 </p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -56,8 +58,14 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
         <SectionCard className="flex items-center">
           <div className="w-full space-y-5">
             <div>
-              <p className="eyebrow">Sign in</p>
-              <h2 className="mt-2 text-3xl font-semibold text-white">Send the login link</h2>
+              <p className="eyebrow">Sign in or sign up</p>
+              <h2 className="mt-2 text-3xl font-semibold text-white">Continue with Google</h2>
+            </div>
+            <OAuthSignInOptions next={next} />
+            <div className="flex items-center gap-3 text-xs uppercase tracking-[0.22em] text-white/34">
+              <span className="h-px flex-1 bg-white/10" />
+              <span>Email fallback</span>
+              <span className="h-px flex-1 bg-white/10" />
             </div>
             <EmailSignInForm next={next} />
             {error ? (
@@ -66,8 +74,8 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
               </div>
             ) : null}
             <p className="text-sm leading-7 text-white/52">
-              Supabase Auth handles the session. The callback route exchanges the
-              code, refreshes the profile row, and returns you to the draft flow.
+              Supabase Auth handles the Google OAuth redirect. The callback route exchanges
+              the code, refreshes the profile row, and returns you to the draft flow.
             </p>
           </div>
         </SectionCard>
@@ -75,4 +83,3 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
     </main>
   );
 }
-
