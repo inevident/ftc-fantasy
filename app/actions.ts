@@ -165,14 +165,14 @@ export async function joinLeagueAction(
   const { data: league, error } = await auth.supabase
     .rpc("join_league_with_invite", { target_invite_code: inviteCode })
     .maybeSingle();
-  const joinedLeague = league as { invite_code: string } | null;
+  const joinedLeague = league as { out_invite_code: string } | null;
 
   if (error || !joinedLeague) {
     return { message: error?.message ?? "Invite code not found.", status: "error" };
   }
 
   revalidatePath("/dashboard");
-  redirect(`/leagues/${joinedLeague.invite_code}`);
+  redirect(`/leagues/${joinedLeague.out_invite_code}`);
 }
 
 export async function joinLeagueDirectAction(formData: FormData) {
