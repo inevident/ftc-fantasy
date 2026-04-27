@@ -7,19 +7,25 @@ import { StatusPill } from "@/components/status-pill";
 import { loadEntryPageData } from "@/lib/data";
 import { createClient } from "@/utils/supabase/server";
 
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 type EntryPageProps = {
   params: Promise<{ entryId: string }>;
 };
 
 export default async function EntryPage({ params }: EntryPageProps) {
   const { entryId } = await params;
+
+  if (!uuidPattern.test(entryId)) {
+    notFound();
+  }
   const supabase = await createClient();
   const {
     data: { user },
   } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
 
   if (!user) {
-    redirect(`/sign-in?next=/entries/${entryId}`);
+    redirect(`/sign-in?next=${encodeURIComponent(`/entries/${entryId}`)}`);
   }
 
   const data = await loadEntryPageData(entryId, user.id);
@@ -34,7 +40,7 @@ export default async function EntryPage({ params }: EntryPageProps) {
         <div className="space-y-3">
           <StatusPill tone="accent">Entry builder</StatusPill>
           <div>
-            <h1 className="text-4xl font-semibold tracking-[-0.04em] text-white md:text-5xl">
+            <h1 className="text-4xl font-semibold leading-tight text-white md:text-5xl">
               {data.entry.entryName}
             </h1>
             <p className="mt-2 text-base text-white/66">

@@ -2,6 +2,9 @@
   "name": "ftc-fantasy",
   "version": "0.1.0",
   "private": true,
+  "overrides": {
+    "postcss": "8.5.12"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -12,27 +15,27 @@
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",
-    "@supabase/supabase-js": "^2.57.5",
+    "@supabase/supabase-js": "^2.104.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.554.0",
-    "next": "16.1.7",
+    "next": "^16.2.4",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "zod": "^4.1.12"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
+    "@tailwindcss/postcss": "^4.2.4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
-    "@types/node": "^20",
+    "@types/node": "^20.19.39",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.1.7",
-    "jsdom": "^29.0.0",
-    "tailwindcss": "^4",
+    "eslint-config-next": "^16.2.4",
+    "jsdom": "^29.1.0",
+    "tailwindcss": "^4.2.4",
     "typescript": "^5",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.5"
   }
 }

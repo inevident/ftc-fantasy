@@ -14,7 +14,7 @@ describe("isStartedQualificationMatch", () => {
         scoreBlueFinal: 0,
         scoreRedFinal: 0,
         series: 1,
-        tournamentLevel: "Qual",
+        tournamentLevel: "Qualification",
       }),
     ).toBe(true);
 

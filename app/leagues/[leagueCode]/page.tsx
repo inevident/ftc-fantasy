@@ -2,11 +2,12 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { createOrOpenEntryDirectAction, joinLeagueDirectAction } from "@/app/actions";
+import { InviteShareButton } from "@/components/invite-share-button";
 import { SectionCard } from "@/components/section-card";
 import { StatusPill } from "@/components/status-pill";
 import { SubmitButton } from "@/components/submit-button";
 import { loadLeaguePageData } from "@/lib/data";
-import { formatTimestamp } from "@/lib/utils";
+import { formatTimestamp, normalizeInviteCode } from "@/lib/utils";
 import { createClient } from "@/utils/supabase/server";
 
 type LeaguePageProps = {
@@ -15,16 +16,21 @@ type LeaguePageProps = {
 };
 
 export default async function LeaguePage({ params, searchParams }: LeaguePageProps) {
-  const { leagueCode } = await params;
+  const { leagueCode: rawLeagueCode } = await params;
+  const leagueCode = normalizeInviteCode(rawLeagueCode);
   const query = await searchParams;
   const error = typeof query.error === "string" ? query.error : null;
+
+  if (!leagueCode) {
+    notFound();
+  }
   const supabase = await createClient();
   const {
     data: { user },
   } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
 
   if (!user) {
-    redirect(`/sign-in?next=/leagues/${leagueCode}`);
+    redirect(`/sign-in?next=${encodeURIComponent(`/leagues/${leagueCode}`)}`);
   }
 
   const data = await loadLeaguePageData(leagueCode, user.id);
@@ -39,7 +45,7 @@ export default async function LeaguePage({ params, searchParams }: LeaguePagePro
         <div className="space-y-3">
           <StatusPill tone="accent">League room</StatusPill>
           <div>
-            <h1 className="text-4xl font-semibold tracking-[-0.04em] text-white md:text-5xl">
+            <h1 className="text-4xl font-semibold leading-tight text-white md:text-5xl">
               {data.league.name}
             </h1>
             <p className="mt-2 text-base text-white/66">
@@ -47,7 +53,7 @@ export default async function LeaguePage({ params, searchParams }: LeaguePagePro
             </p>
           </div>
         </div>
-
+        <InviteShareButton inviteCode={data.league.inviteCode} leagueName={data.league.name} />
       </section>
 
       {!data.league.isMember ? (
@@ -61,6 +67,9 @@ export default async function LeaguePage({ params, searchParams }: LeaguePagePro
           <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/62">
             <p>Division mode: <span className="font-semibold text-white">{data.seasonPool.season.divisionStatus}</span></p>
             <p className="mt-1">Entry lock: <span className="font-semibold text-white">{data.league.entryLocked ? "locked" : "open"}</span></p>
+          </div>
+          <div className="mt-5">
+            <InviteShareButton inviteCode={data.league.inviteCode} leagueName={data.league.name} />
           </div>
           <form action={joinLeagueDirectAction} className="mt-6 space-y-4">
             <input name="inviteCode" type="hidden" value={data.league.inviteCode} />

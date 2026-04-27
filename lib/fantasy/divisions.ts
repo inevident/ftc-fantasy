@@ -66,8 +66,22 @@ export function validateEntrySelection(teamNumbers: number[], teams: QualifiedTe
     return `Entries must contain exactly ${seasonConfig.rosterPickCount} teams.`;
   }
 
+  if (new Set(teamNumbers).size !== teamNumbers.length) {
+    return "Each roster spot must be a unique team.";
+  }
+
+  const teamLookup = new Map(teams.map((team) => [team.teamNumber, team]));
+  const missingTeamNumber = teamNumbers.find((teamNumber) => !teamLookup.has(teamNumber));
+
+  if (missingTeamNumber) {
+    return `Team ${missingTeamNumber} is no longer in the official Worlds draft pool.`;
+  }
+
   const counts = countTeamsByDivision(teamNumbers, teams);
-  const invalidDivision = Object.values(counts).find((count) => count !== seasonConfig.teamsPerDivision);
+  const divisionCodes = Array.from(new Set(teams.map((team) => team.divisionCode)));
+  const invalidDivision = divisionCodes.find(
+    (divisionCode) => counts[divisionCode] !== seasonConfig.teamsPerDivision,
+  );
 
   if (invalidDivision) {
     return `Each division requires exactly ${seasonConfig.teamsPerDivision} teams.`;

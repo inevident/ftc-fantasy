@@ -1,11 +1,8 @@
 import type { FtcMatch } from "@/lib/types";
-
-function normalizeTournamentLevel(level?: string | null) {
-  return (level ?? "").trim().toLowerCase();
-}
+import { isQualificationLevel } from "@/lib/ftc/tournament-level";
 
 export function isStartedQualificationMatch(match: FtcMatch) {
-  if (normalizeTournamentLevel(match.tournamentLevel) !== "qual") {
+  if (!isQualificationLevel(match.tournamentLevel)) {
     return false;
   }
 

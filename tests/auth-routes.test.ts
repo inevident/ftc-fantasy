@@ -34,7 +34,7 @@ describe("auth oauth route", () => {
     expect(createClient).not.toHaveBeenCalled();
   });
 
-  it("starts the Google OAuth flow with the forwarded origin", async () => {
+  it("starts the Google OAuth flow without trusting forwarded host spoofing", async () => {
     const signInWithOAuth = vi.fn().mockResolvedValue({
       data: { url: "https://accounts.google.com/o/oauth2/v2/auth?mock=1" },
       error: null,
@@ -61,7 +61,7 @@ describe("auth oauth route", () => {
     );
     expect(signInWithOAuth).toHaveBeenCalledWith({
       options: {
-        redirectTo: "https://fantasy.example.com/auth/callback?next=%2Fentries%2Fabc",
+        redirectTo: "http://127.0.0.1:3000/auth/callback?next=%2Fentries%2Fabc",
         skipBrowserRedirect: true,
       },
       provider: "google",
@@ -89,7 +89,7 @@ describe("auth callback route", () => {
     expect(createClient).not.toHaveBeenCalled();
   });
 
-  it("exchanges the code, ensures the profile, and redirects to the forwarded origin", async () => {
+  it("exchanges the code, ensures the profile, and redirects without trusting forwarded host spoofing", async () => {
     const exchangeCodeForSession = vi.fn().mockResolvedValue({ error: null });
     const getUser = vi.fn().mockResolvedValue({
       data: {
@@ -131,7 +131,7 @@ describe("auth callback route", () => {
       }),
     );
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe("https://fantasy.example.com/dashboard");
+    expect(response.headers.get("location")).toBe("http://127.0.0.1:3000/dashboard");
   });
 
   it("returns to sign-in when profile setup fails", async () => {

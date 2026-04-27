@@ -1,3 +1,5 @@
+import { getAppOriginEnv } from "@/lib/env";
+
 export const oauthProviders = [
   {
     id: "google",
@@ -14,30 +16,14 @@ export function isOAuthProvider(value: string): value is OAuthProvider {
 
 type HeaderReader = Pick<Headers, "get">;
 
-function getForwardedHeaderValue(headers: HeaderReader, name: string) {
-  const value = headers.get(name);
-
-  if (!value) {
-    return null;
+export function resolveRequestOrigin(_headers: HeaderReader, requestUrl: string) {
+  const appOrigin = getAppOriginEnv();
+  if (appOrigin) {
+    return appOrigin;
   }
 
-  const firstValue = value.split(",")[0]?.trim();
-  return firstValue || null;
-}
-
-export function resolveRequestOrigin(headers: HeaderReader, requestUrl: string) {
   const fallbackUrl = new URL(requestUrl);
-  const forwardedHost = getForwardedHeaderValue(headers, "x-forwarded-host");
-
-  if (!forwardedHost) {
-    return fallbackUrl.origin;
-  }
-
-  const forwardedProto =
-    getForwardedHeaderValue(headers, "x-forwarded-proto") ??
-    fallbackUrl.protocol.replace(/:$/, "");
-
-  return `${forwardedProto}://${forwardedHost}`;
+  return fallbackUrl.origin;
 }
 
 export function buildAuthCallbackUrl(headers: HeaderReader, requestUrl: string, next: string) {

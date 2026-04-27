@@ -233,4 +233,5 @@ export type TeamPoolSyncResult = {
   divisions: DivisionGroup[];
   hasOfficialAssignments: boolean;
   teams: QualifiedTeam[];
+  unassignedTeams?: QualifiedTeam[];
 };

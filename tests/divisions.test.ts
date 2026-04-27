@@ -45,5 +45,18 @@ describe("buildProvisionalTeamPool", () => {
     const invalidSelection = [...validSelection.slice(0, -1), validSelection[0]];
     expect(validateEntrySelection(invalidSelection, pool.teams)).toBeTruthy();
   });
-});
 
+  it("rejects official-remap teams that are no longer draftable", () => {
+    const pool = buildProvisionalTeamPool(createTeams(24));
+    const selection = pool.divisions.flatMap((division) => {
+      return pool.teams
+        .filter((team) => team.divisionCode === division.code)
+        .slice(0, 2)
+        .map((team) => team.teamNumber);
+    });
+
+    expect(validateEntrySelection([...selection.slice(0, -1), 99999], pool.teams)).toMatch(
+      /no longer in the official Worlds draft pool/,
+    );
+  });
+});

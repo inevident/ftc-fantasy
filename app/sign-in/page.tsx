@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 
 import { EmailSignInForm } from "@/components/email-sign-in-form";
 import { OAuthSignInOptions } from "@/components/oauth-sign-in-options";
 import { SectionCard } from "@/components/section-card";
 import { StatusPill } from "@/components/status-pill";
+import { devLoginUsers, isDevLoginEnabled } from "@/lib/auth/dev-login";
 
 type SignInPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -11,8 +13,10 @@ type SignInPageProps = {
 
 export default async function SignInPage({ searchParams }: SignInPageProps) {
   const params = await searchParams;
+  const requestHeaders = await headers();
   const next = typeof params.next === "string" ? params.next : "/dashboard";
   const error = typeof params.error === "string" ? params.error : null;
+  const showDevLogin = isDevLoginEnabled(requestHeaders.get("host"));
 
   return (
     <main className="page-shell">
@@ -21,13 +25,13 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
           <div className="space-y-6">
             <StatusPill tone="accent">Google OAuth</StatusPill>
             <div className="space-y-4">
-              <h1 className="max-w-xl text-5xl font-semibold tracking-[-0.05em] text-white">
+              <h1 className="max-w-xl text-5xl font-semibold leading-tight text-white">
                 Enter the Worlds fantasy control room.
               </h1>
               <p className="max-w-lg text-lg leading-8 text-white/68">
                 Sign in or create your account with Google, create a private
-                invite-code league, and build a 12-team roster before official
-                divisions drop.
+                invite-code league, and build a 12-team roster from the official
+                Worlds divisions.
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -41,7 +45,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                 <p className="eyebrow">Roster rule</p>
                 <p className="mt-3 text-sm leading-7 text-white/66">
-                  Two teams per division across all six provisional groups, plus a
+                  Two teams per division across all six official groups, plus a
                   champion pick for tiebreaks.
                 </p>
               </div>
@@ -71,6 +75,24 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
             {error ? (
               <div className="rounded-2xl border border-amber-300/25 bg-amber-300/10 p-4 text-sm text-amber-100">
                 {error}
+              </div>
+            ) : null}
+            {showDevLogin ? (
+              <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/8 p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-cyan-100/70">
+                  Local fake login
+                </p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {Object.entries(devLoginUsers).map(([key, user]) => (
+                    <Link
+                      className="rounded-xl border border-white/12 bg-white/[0.04] px-3 py-2 text-sm text-white transition hover:border-cyan-300/40"
+                      href={`/dev-login?user=${key}&next=${encodeURIComponent(next)}`}
+                      key={key}
+                    >
+                      {user.displayName}
+                    </Link>
+                  ))}
+                </div>
               </div>
             ) : null}
             <p className="text-sm leading-7 text-white/52">
