@@ -10,13 +10,38 @@ function parseDryRun(request: Request) {
   return value === "1" || value === "true" || value === "yes";
 }
 
-export async function GET() {
-  return NextResponse.json({
-    authorization: "Bearer <SYNC_ROUTE_SECRET>",
-    endpoint: "/api/sync/roster",
-    methods: ["POST"],
-    notes: getSetupChecklist(),
-  });
+function isAuthorizedCronRequest(request: Request) {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) return false;
+  return request.headers.get("authorization") === `Bearer ${cronSecret}`;
+}
+
+export async function GET(request: Request) {
+  // Vercel Cron sends GET with CRON_SECRET
+  if (!isAuthorizedCronRequest(request)) {
+    return NextResponse.json({
+      authorization: "Bearer <SYNC_ROUTE_SECRET>",
+      endpoint: "/api/sync/roster",
+      methods: ["GET (cron)", "POST"],
+      notes: getSetupChecklist(),
+    });
+  }
+
+  try {
+    const result = await runRosterSync({ dryRun: false });
+    return NextResponse.json({
+      divisionStatus: result.metadata.divisionStatus,
+      itemCount: result.itemCount,
+      metadata: result.metadata,
+      persisted: result.persisted,
+      source: "cron",
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Roster sync failed." },
+      { status: 500 },
+    );
+  }
 }
 
 export async function POST(request: Request) {
@@ -57,3 +82,4 @@ export async function POST(request: Request) {
     );
   }
 }
+
