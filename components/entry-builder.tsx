@@ -159,11 +159,24 @@ export function EntryBuilder({
     return accumulator;
   }, {});
 
-  const canSave =
-    !isLocked &&
-    selected.length === seasonConfig.rosterPickCount &&
-    divisions.every((division) => divisionCounts[division.code] === seasonConfig.teamsPerDivision) &&
-    championPick !== null;
+  /* ---- save readiness ---- */
+  const missingSteps: string[] = [];
+  if (selected.length < seasonConfig.rosterPickCount) {
+    missingSteps.push(`Draft ${seasonConfig.rosterPickCount - selected.length} more team${seasonConfig.rosterPickCount - selected.length === 1 ? "" : "s"}`);
+  }
+  const unbalancedDivisions = divisions.filter(
+    (d) => (divisionCounts[d.code] ?? 0) !== seasonConfig.teamsPerDivision,
+  );
+  if (selected.length === seasonConfig.rosterPickCount && unbalancedDivisions.length > 0) {
+    missingSteps.push(
+      `Balance divisions: ${unbalancedDivisions.map((d) => `${d.name} (${divisionCounts[d.code] ?? 0}/${seasonConfig.teamsPerDivision})`).join(", ")}`,
+    );
+  }
+  if (championPick === null && selected.length > 0) {
+    missingSteps.push("Pick a champion tiebreak team in the sidebar →");
+  }
+
+  const canSave = !isLocked && missingSteps.length === 0;
 
   const statusMessage = isLocked
     ? "Entries are locked because Worlds qualification matches have started."
@@ -484,11 +497,25 @@ export function EntryBuilder({
           <p className="mt-2 text-sm text-white/62">
             Final validation still happens on the server. This screen just keeps the draft playable.
           </p>
+
+          {/* Checklist of remaining steps */}
+          {!isLocked && missingSteps.length > 0 && (
+            <div className="mt-4 space-y-1.5 rounded-2xl border border-amber-300/16 bg-amber-300/[0.04] px-4 py-3">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-amber-300/70">Before you can save</p>
+              {missingSteps.map((step) => (
+                <p className="flex items-center gap-2 text-sm text-amber-100/80" key={step}>
+                  <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400/60" />
+                  {step}
+                </p>
+              ))}
+            </div>
+          )}
+
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <SubmitButton
               className={cn(
                 "w-full justify-center sm:w-auto",
-                !canSave && "cursor-not-allowed opacity-60",
+                !canSave && "!cursor-not-allowed !opacity-40 !bg-white/10 !text-white/40 !border-white/10 hover:!scale-100",
               )}
               disabled={!canSave}
               idleLabel="Save entry"
@@ -510,7 +537,7 @@ export function EntryBuilder({
         </div>
       </form>
 
-      <aside className="space-y-4 rounded-[28px] border border-white/12 bg-[linear-gradient(180deg,rgba(6,10,21,0.96),rgba(8,14,31,0.96))] p-5">
+      <aside className="sticky top-4 h-fit space-y-4 rounded-[28px] border border-white/12 bg-[linear-gradient(180deg,rgba(6,10,21,0.96),rgba(8,14,31,0.96))] p-5">
         <div>
           <p className="text-xs uppercase tracking-[0.25em] text-white/45">Champion tiebreak</p>
           <h2 className="mt-2 text-xl font-semibold text-white">Pick one drafted team</h2>
