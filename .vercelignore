@@ -1,0 +1,8 @@
+.env*
+.next
+.vercel
+node_modules
+tmp
+coverage
+.DS_Store
+*.pem
