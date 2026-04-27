@@ -2,8 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { CreateLeagueForm, JoinLeagueForm } from "@/components/league-forms";
+import { AppNav } from "@/components/app-nav";
 import { SectionCard } from "@/components/section-card";
-import { SignOutForm } from "@/components/sign-out-form";
 import { StatusPill } from "@/components/status-pill";
 import { loadDashboardData } from "@/lib/data";
 import { formatTimestamp } from "@/lib/utils";
@@ -22,6 +22,8 @@ export default async function DashboardPage() {
   const dashboard = await loadDashboardData(user.id, user.email);
 
   return (
+    <>
+      <AppNav />
     <main className="page-shell">
       <section className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-3">
@@ -36,7 +38,6 @@ export default async function DashboardPage() {
             </p>
           </div>
         </div>
-        <SignOutForm />
       </section>
 
       <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
@@ -190,5 +191,6 @@ export default async function DashboardPage() {
         </SectionCard>
       </section>
     </main>
+    </>
   );
 }

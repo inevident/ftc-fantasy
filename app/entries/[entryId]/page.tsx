@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { EntryBuilder } from "@/components/entry-builder";
+import { AppNav } from "@/components/app-nav";
 import { SectionCard } from "@/components/section-card";
 import { StatusPill } from "@/components/status-pill";
 import { loadEntryPageData } from "@/lib/data";
@@ -35,6 +36,12 @@ export default async function EntryPage({ params }: EntryPageProps) {
   }
 
   return (
+    <>
+      <AppNav
+        leagueCode={data.entry.leagueCode}
+        leagueName={data.entry.leagueName}
+        pageTitle={data.entry.entryName}
+      />
     <main className="page-shell">
       <section className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-3">
@@ -88,5 +95,6 @@ export default async function EntryPage({ params }: EntryPageProps) {
         teams={data.seasonPool.teams}
       />
     </main>
+    </>
   );
 }

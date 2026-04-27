@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { createOrOpenEntryDirectAction, joinLeagueDirectAction } from "@/app/actions";
+import { AppNav } from "@/components/app-nav";
 import { InviteShareButton } from "@/components/invite-share-button";
 import { SectionCard } from "@/components/section-card";
 import { StatusPill } from "@/components/status-pill";
@@ -40,6 +41,8 @@ export default async function LeaguePage({ params, searchParams }: LeaguePagePro
   }
 
   return (
+    <>
+      <AppNav leagueCode={leagueCode} leagueName={data.league.name} />
     <main className="page-shell">
       <section className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-3">
@@ -227,5 +230,6 @@ export default async function LeaguePage({ params, searchParams }: LeaguePagePro
         </>
       )}
     </main>
+    </>
   );
 }
