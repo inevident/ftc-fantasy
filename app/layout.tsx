@@ -1,10 +1,17 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
+import { Chakra_Petch, IBM_Plex_Mono, Russo_One } from "next/font/google";
 import "./globals.css";
 
-const spaceGrotesk = Space_Grotesk({
+const chakraPetch = Chakra_Petch({
   subsets: ["latin"],
-  variable: "--font-space-grotesk",
+  variable: "--font-chakra-petch",
+  weight: ["300", "400", "500", "600", "700"],
+});
+
+const russoOne = Russo_One({
+  subsets: ["latin"],
+  variable: "--font-russo-one",
+  weight: "400",
 });
 
 const ibmPlexMono = IBM_Plex_Mono({
@@ -27,7 +34,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${spaceGrotesk.variable} ${ibmPlexMono.variable} antialiased`}
+        className={`${chakraPetch.variable} ${russoOne.variable} ${ibmPlexMono.variable} antialiased`}
       >
         {children}
       </body>

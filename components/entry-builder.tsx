@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useCallback, useMemo, useRef, useState, useEffect } from "react";
 
 import { saveEntryAction } from "@/app/actions";
 import { SubmitButton } from "@/components/submit-button";
@@ -24,6 +24,68 @@ type EntryBuilderProps = {
   teams: QualifiedTeam[];
 };
 
+/* ------------------------------------------------------------------ */
+/*  Search icon (inline SVG to avoid extra deps)                      */
+/* ------------------------------------------------------------------ */
+function SearchIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      height="16"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+      width="16"
+    >
+      <circle cx="11" cy="11" r="8" />
+      <path d="m21 21-4.3-4.3" />
+    </svg>
+  );
+}
+
+function XIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      height="14"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+      width="14"
+    >
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </svg>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Helpers                                                           */
+/* ------------------------------------------------------------------ */
+function matchesSearch(team: QualifiedTeam, query: string): boolean {
+  if (!query) return true;
+  const q = query.toLowerCase();
+  return (
+    String(team.teamNumber).includes(q) ||
+    (team.nameShort?.toLowerCase().includes(q) ?? false) ||
+    (team.nameFull?.toLowerCase().includes(q) ?? false) ||
+    (team.schoolName?.toLowerCase().includes(q) ?? false) ||
+    (team.city?.toLowerCase().includes(q) ?? false) ||
+    (team.stateProv?.toLowerCase().includes(q) ?? false) ||
+    (team.country?.toLowerCase().includes(q) ?? false) ||
+    (team.robotName?.toLowerCase().includes(q) ?? false)
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Component                                                         */
+/* ------------------------------------------------------------------ */
 export function EntryBuilder({
   championPickTeamNumber,
   defaultEntryName,
@@ -42,12 +104,51 @@ export function EntryBuilder({
   const [selected, setSelected] = useState<number[]>(selectedTeamNumbers);
   const [championPick, setChampionPick] = useState<number | null>(championPickTeamNumber ?? null);
 
-  const teamsByDivision = divisions.map((division) => ({
-    division,
-    teams: teams.filter((team) => team.divisionCode === division.code),
-  }));
+  /* ---- search / filter state ---- */
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeDivision, setActiveDivision] = useState<string | null>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const divisionRefs = useRef<Record<string, HTMLElement | null>>({});
 
+  /* Keyboard shortcut: Ctrl/Cmd + K to focus search */
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  /* ---- derived data ---- */
   const selectedSet = new Set(selected);
+
+  const teamsByDivision = useMemo(
+    () =>
+      divisions.map((division) => ({
+        division,
+        teams: teams.filter((team) => team.divisionCode === division.code),
+      })),
+    [divisions, teams],
+  );
+
+  const filteredTeamsByDivision = useMemo(
+    () =>
+      teamsByDivision.map(({ division, teams: divTeams }) => ({
+        division,
+        teams: divTeams,
+        filteredTeams: divTeams.filter((t) => matchesSearch(t, searchQuery)),
+      })),
+    [teamsByDivision, searchQuery],
+  );
+
+  const totalMatches = useMemo(
+    () => filteredTeamsByDivision.reduce((sum, d) => sum + d.filteredTeams.length, 0),
+    [filteredTeamsByDivision],
+  );
+
   const divisionCounts = selected.reduce<Record<string, number>>((accumulator, teamNumber) => {
     const team = teams.find((candidate) => candidate.teamNumber === teamNumber);
     if (!team) {
@@ -69,6 +170,21 @@ export function EntryBuilder({
     : divisionStatus === "official" && invalidReason
       ? "Official divisions are live. Rebalance this roster before the lock hits."
       : null;
+
+  /* ---- callbacks ---- */
+  const scrollToDivision = useCallback((code: string) => {
+    setActiveDivision(code);
+    const el = divisionRefs.current[code];
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, []);
+
+  const clearSearch = useCallback(() => {
+    setSearchQuery("");
+    setActiveDivision(null);
+    searchRef.current?.focus();
+  }, []);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -92,28 +208,185 @@ export function EntryBuilder({
           />
         </label>
 
-        {teamsByDivision.map(({ division, teams: divisionTeams }) => {
+        {/* ============================================= */}
+        {/*  SEARCH & FILTER TOOLBAR                      */}
+        {/* ============================================= */}
+        <div
+          className="sticky top-0 z-20 -mx-1 space-y-3 rounded-[24px] border border-white/10 bg-[rgba(10,10,28,0.92)] p-4 backdrop-blur-xl"
+          style={{ backdropFilter: "blur(20px) saturate(1.4)" }}
+        >
+          {/* Search input */}
+          <div className="relative">
+            <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40" />
+            <input
+              ref={searchRef}
+              className="w-full rounded-xl border border-white/12 bg-white/[0.05] py-3 pl-11 pr-24 text-sm text-white placeholder-white/36 outline-none transition-colors focus:border-cyan-400/50 focus:bg-white/[0.07]"
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setActiveDivision(null);
+              }}
+              placeholder="Search teams by name, number, location, or school…"
+              type="text"
+              value={searchQuery}
+            />
+            {/* Right side: match count + clear */}
+            <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-2">
+              {searchQuery && (
+                <>
+                  <span className="text-xs tabular-nums text-white/44">
+                    {totalMatches} {totalMatches === 1 ? "match" : "matches"}
+                  </span>
+                  <button
+                    className="flex h-6 w-6 items-center justify-center rounded-lg bg-white/8 text-white/50 transition hover:bg-white/14 hover:text-white/80"
+                    onClick={clearSearch}
+                    type="button"
+                  >
+                    <XIcon />
+                  </button>
+                </>
+              )}
+              {!searchQuery && (
+                <kbd className="hidden rounded-md border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[10px] font-medium text-white/30 sm:inline-block">
+                  ⌘K
+                </kbd>
+              )}
+            </div>
+          </div>
+
+          {/* Division filter tabs */}
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            <button
+              className={cn(
+                "shrink-0 rounded-xl px-3.5 py-1.5 text-xs font-medium uppercase tracking-[0.14em] transition-all",
+                activeDivision === null
+                  ? "bg-cyan-400/16 text-cyan-300 border border-cyan-400/30"
+                  : "bg-white/[0.04] text-white/50 border border-white/8 hover:bg-white/8 hover:text-white/70",
+              )}
+              onClick={() => {
+                setActiveDivision(null);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+              type="button"
+            >
+              All · {teams.length}
+            </button>
+            {filteredTeamsByDivision.map(({ division, filteredTeams }) => {
+              const count = divisionCounts[division.code] ?? 0;
+              const isFull = count >= seasonConfig.teamsPerDivision;
+              const isActive = activeDivision === division.code;
+              const matchCount = searchQuery ? filteredTeams.length : undefined;
+
+              return (
+                <button
+                  className={cn(
+                    "group relative shrink-0 rounded-xl px-3.5 py-1.5 text-xs font-medium uppercase tracking-[0.14em] transition-all",
+                    isActive
+                      ? "bg-cyan-400/16 text-cyan-300 border border-cyan-400/30"
+                      : "bg-white/[0.04] text-white/50 border border-white/8 hover:bg-white/8 hover:text-white/70",
+                  )}
+                  key={division.code}
+                  onClick={() => scrollToDivision(division.code)}
+                  type="button"
+                >
+                  <span className="flex items-center gap-1.5">
+                    {division.name}
+                    <span
+                      className={cn(
+                        "inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold tabular-nums",
+                        isFull
+                          ? "bg-emerald-400/20 text-emerald-300"
+                          : count > 0
+                            ? "bg-amber-400/20 text-amber-300"
+                            : "bg-white/8 text-white/40",
+                      )}
+                    >
+                      {count}/{seasonConfig.teamsPerDivision}
+                    </span>
+                    {matchCount !== undefined && matchCount !== filteredTeamsByDivision.find(d => d.division.code === division.code)?.teams.length && (
+                      <span className="text-[10px] text-white/30">
+                        ({matchCount})
+                      </span>
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Selected teams summary bar */}
+          <div className="flex items-center justify-between border-t border-white/8 pt-2.5">
+            <div className="flex items-center gap-3">
+              <span
+                className={cn(
+                  "text-sm font-semibold tabular-nums",
+                  selected.length === seasonConfig.rosterPickCount
+                    ? "text-emerald-300"
+                    : "text-white/70",
+                )}
+              >
+                {selected.length}/{seasonConfig.rosterPickCount}
+              </span>
+              <span className="text-xs text-white/40">teams drafted</span>
+            </div>
+            {selected.length > 0 && !isLocked && (
+              <button
+                className="text-xs text-white/40 underline decoration-white/16 underline-offset-2 transition hover:text-white/60"
+                onClick={() => {
+                  setSelected([]);
+                  setChampionPick(null);
+                }}
+                type="button"
+              >
+                Clear all
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ============================================= */}
+        {/*  DIVISION SECTIONS                            */}
+        {/* ============================================= */}
+        {filteredTeamsByDivision.map(({ division, teams: _allDivTeams, filteredTeams }) => {
           const divisionCount = divisionCounts[division.code] ?? 0;
+          const hasHiddenTeams = searchQuery && filteredTeams.length < _allDivTeams.length;
+          const showDivision = !searchQuery || filteredTeams.length > 0;
+
+          if (!showDivision) return null;
 
           return (
             <section
-              className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5"
+              className="scroll-mt-56 rounded-[24px] border border-white/10 bg-white/[0.03] p-5 transition-all"
               key={division.code}
+              ref={(el) => { divisionRefs.current[division.code] = el; }}
             >
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-semibold text-white">{division.name}</h2>
                   <p className="text-sm text-white/56">
                     Pick {seasonConfig.teamsPerDivision} teams from this group.
+                    {hasHiddenTeams && (
+                      <span className="ml-2 text-cyan-300/70">
+                        Showing {filteredTeams.length} of {_allDivTeams.length} teams
+                      </span>
+                    )}
                   </p>
                 </div>
-                <span className="rounded-full border border-white/12 bg-white/6 px-3 py-1 text-xs uppercase tracking-[0.2em] text-white/70">
+                <span
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-xs uppercase tracking-[0.2em] transition-colors",
+                    divisionCount >= seasonConfig.teamsPerDivision
+                      ? "border-emerald-400/30 bg-emerald-400/12 text-emerald-300"
+                      : divisionCount > 0
+                        ? "border-amber-400/24 bg-amber-400/10 text-amber-300"
+                        : "border-white/12 bg-white/6 text-white/70",
+                  )}
+                >
                   {divisionCount}/{seasonConfig.teamsPerDivision}
                 </span>
               </div>
 
               <div className="grid gap-3 md:grid-cols-2">
-                {divisionTeams.map((team) => {
+                {filteredTeams.map((team) => {
                   const checked = selectedSet.has(team.teamNumber);
                   const disableUnchecked =
                     !checked && divisionCount >= seasonConfig.teamsPerDivision;
@@ -121,11 +394,11 @@ export function EntryBuilder({
                   return (
                     <label
                       className={cn(
-                        "block rounded-2xl border p-4 transition",
+                        "block cursor-pointer rounded-2xl border p-4 transition-all",
                         checked
-                          ? "border-cyan-300/55 bg-cyan-400/10"
-                          : "border-white/10 bg-slate-950/55 hover:border-white/22",
-                        disableUnchecked && "opacity-45",
+                          ? "border-cyan-300/55 bg-cyan-400/10 shadow-[0_0_20px_rgba(34,211,238,0.06)]"
+                          : "border-white/10 bg-slate-950/55 hover:border-white/22 hover:bg-slate-900/40",
+                        disableUnchecked && "cursor-not-allowed opacity-45",
                       )}
                       key={team.teamNumber}
                     >
@@ -158,14 +431,19 @@ export function EntryBuilder({
                         type="checkbox"
                       />
                       <div className="flex items-start justify-between gap-3">
-                        <div>
+                        <div className="min-w-0">
                           <p className="text-base font-semibold text-white">{formatTeamLabel(team)}</p>
-                          <p className="mt-1 text-sm text-white/72">{team.nameFull ?? team.schoolName}</p>
+                          <p className="mt-1 truncate text-sm text-white/72">{team.nameFull ?? team.schoolName}</p>
                           <p className="mt-2 text-xs uppercase tracking-[0.18em] text-white/44">
                             {formatLocation(team)}
                           </p>
                         </div>
-                        <div className="rounded-full border border-white/12 bg-white/8 px-3 py-1 text-xs font-medium text-white/76">
+                        <div className={cn(
+                          "shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                          checked
+                            ? "border-cyan-300/40 bg-cyan-400/16 text-cyan-200"
+                            : "border-white/12 bg-white/8 text-white/76",
+                        )}>
                           #{team.teamNumber}
                         </div>
                       </div>
@@ -173,9 +451,33 @@ export function EntryBuilder({
                   );
                 })}
               </div>
+
+              {/* Show a note when all teams in a division are filtered out by search */}
+              {filteredTeams.length === 0 && searchQuery && (
+                <div className="rounded-2xl border border-dashed border-white/10 px-5 py-6 text-center text-sm text-white/40">
+                  No teams in {division.name} match &ldquo;{searchQuery}&rdquo;
+                </div>
+              )}
             </section>
           );
         })}
+
+        {/* No results across all divisions */}
+        {searchQuery && totalMatches === 0 && (
+          <div className="rounded-[24px] border border-dashed border-white/12 px-6 py-10 text-center">
+            <p className="text-lg font-medium text-white/60">No teams found</p>
+            <p className="mt-2 text-sm text-white/36">
+              Try a different search term — team number, name, city, or state.
+            </p>
+            <button
+              className="mt-4 rounded-xl bg-white/8 px-4 py-2 text-sm text-white/60 transition hover:bg-white/12 hover:text-white/80"
+              onClick={clearSearch}
+              type="button"
+            >
+              Clear search
+            </button>
+          </div>
+        )}
 
         <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
           <h2 className="text-lg font-semibold text-white">Save roster</h2>

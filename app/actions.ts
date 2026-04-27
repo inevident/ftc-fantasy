@@ -128,7 +128,7 @@ export async function createLeagueAction(
       return { message: error.message, status: "error" };
     }
 
-    const { error: memberError } = await auth.supabase.from("league_members").upsert({
+    const { error: memberError } = await auth.supabase.from("league_members").insert({
       joined_at: new Date().toISOString(),
       league_id: league.id,
       role: "owner",
