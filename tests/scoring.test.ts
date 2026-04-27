@@ -34,6 +34,29 @@ describe("scoreDivision", () => {
     expect(championBreakdown.reduce((sum, item) => sum + item.points, 0)).toBe(35);
     expect(finalistBreakdown.reduce((sum, item) => sum + item.points, 0)).toBe(19);
   });
+
+  it("does not treat qualification matches as playoff wins", () => {
+    const scoreMap = scoreDivision(
+      [{ matchesPlayed: 1, rank: 10, teamNumber: 1, ties: 0, wins: 1 }],
+      [
+        {
+          matchNumber: 1,
+          scoreBlueFinal: 90,
+          scoreRedFinal: 110,
+          series: 1,
+          teams: [
+            { station: "Red1", teamNumber: 1 },
+            { station: "Blue1", teamNumber: 2 },
+          ],
+          tournamentLevel: "Qualification",
+        },
+      ],
+    );
+
+    const sourceTypes = (scoreMap.get(1) ?? []).map((item) => item.sourceType);
+    expect(sourceTypes).not.toContain("playoff_win");
+    expect(sourceTypes).not.toContain("division_champion");
+  });
 });
 
 describe("sortLeaderboard", () => {

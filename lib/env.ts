@@ -6,6 +6,7 @@ const publicSupabaseEnvSchema = z.object({
 });
 
 const serverOnlyEnvSchema = publicSupabaseEnvSchema.extend({
+  APP_ORIGIN: z.string().url().optional(),
   FTC_API_TOKEN: z.string().min(1).optional(),
   FTC_API_USERNAME: z.string().min(1).optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
@@ -63,6 +64,16 @@ export function getSyncRouteSecretEnv() {
   };
 }
 
+export function getAppOriginEnv() {
+  const parsed = serverOnlyEnvSchema.safeParse(process.env);
+
+  if (!parsed.success || !parsed.data.APP_ORIGIN) {
+    return null;
+  }
+
+  return parsed.data.APP_ORIGIN.replace(/\/$/, "");
+}
+
 export function hasSupabaseConfig() {
   return getPublicSupabaseEnv() !== null;
 }
@@ -77,5 +88,8 @@ export function getSetupChecklist() {
     !getSupabaseServiceRoleEnv() && "Set SUPABASE_SERVICE_ROLE_KEY to enable persistent sync jobs.",
     !getFtcApiEnv() && "Set FTC_API_USERNAME and FTC_API_TOKEN to enable live Worlds sync.",
     !getSyncRouteSecretEnv() && "Set SYNC_ROUTE_SECRET to protect the sync endpoints.",
+    process.env.NODE_ENV === "production" &&
+      !getAppOriginEnv() &&
+      "Set APP_ORIGIN to the canonical deployed origin for secure auth redirects.",
   ].filter(Boolean) as string[];
 }

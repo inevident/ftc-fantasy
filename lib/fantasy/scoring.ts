@@ -1,4 +1,5 @@
 import { scoringRules } from "@/lib/constants";
+import { isQualificationLevel } from "@/lib/ftc/tournament-level";
 import type {
   FtcMatch,
   FtcRanking,
@@ -20,10 +21,6 @@ function addBreakdown(
   const current = scoreMap.get(teamNumber) ?? [];
   current.push({ label, points, sourceKey, sourceType });
   scoreMap.set(teamNumber, current);
-}
-
-function normalizeTournamentLevel(level?: string | null) {
-  return (level ?? "").trim().toLowerCase();
 }
 
 function getAllianceColor(station?: string | null) {
@@ -119,7 +116,7 @@ export function scoreDivision(rankings: FtcRanking[], matches: FtcMatch[]) {
   }
 
   const playoffMatches = sortMatches(
-    matches.filter((match) => normalizeTournamentLevel(match.tournamentLevel) !== "qual"),
+    matches.filter((match) => !isQualificationLevel(match.tournamentLevel)),
   );
 
   for (const match of playoffMatches) {
@@ -250,4 +247,3 @@ export function sortLeaderboard(rows: LeaderboardRow[]) {
     return new Date(left.savedAt).getTime() - new Date(right.savedAt).getTime();
   });
 }
-

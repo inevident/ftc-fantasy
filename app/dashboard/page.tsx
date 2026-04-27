@@ -27,7 +27,7 @@ export default async function DashboardPage() {
         <div className="space-y-3">
           <StatusPill tone="accent">Manager dashboard</StatusPill>
           <div>
-            <h1 className="text-4xl font-semibold tracking-[-0.04em] text-white md:text-5xl">
+            <h1 className="text-4xl font-semibold leading-tight text-white md:text-5xl">
               {user.user_metadata?.display_name ?? user.email?.split("@")[0] ?? "FTC Manager"}
             </h1>
             <p className="mt-2 text-base text-white/66">

@@ -16,5 +16,6 @@ describe("isAuthorizedSyncRequest", () => {
     expect(isAuthorizedSyncRequest("Bearer sync-secret", "sync-secret")).toBe(true);
     expect(isAuthorizedSyncRequest("Bearer wrong-secret", "sync-secret")).toBe(false);
     expect(isAuthorizedSyncRequest(undefined, "sync-secret")).toBe(false);
+    expect(isAuthorizedSyncRequest("Bearer sync-secret-extra", "sync-secret")).toBe(false);
   });
 });

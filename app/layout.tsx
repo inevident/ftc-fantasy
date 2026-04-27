@@ -15,7 +15,7 @@ const ibmPlexMono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   description:
-    "Fantasy-style FTC Worlds game with provisional divisions, private leagues, and official FTC scoring sync.",
+    "Fantasy-style FTC Worlds game with official divisions, private leagues, and FTC scoring sync.",
   title: "FTC Fantasy Worlds 2026",
 };
 

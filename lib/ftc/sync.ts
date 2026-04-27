@@ -10,6 +10,7 @@ import {
   fetchSeasonEvents,
 } from "@/lib/ftc/client";
 import { getQualificationLockTimestamp } from "@/lib/ftc/match-state";
+import { getOfficialDivisionCode, getOfficialDivisionName } from "@/lib/ftc/official-divisions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type {
   DivisionGroup,
@@ -23,26 +24,30 @@ import type {
 
 type AdminClient = NonNullable<ReturnType<typeof createAdminClient>>;
 
+function mapFtcTeam(team: FtcTeam, index: number): QualifiedTeam {
+  return {
+    city: team.city,
+    country: team.country,
+    displayTeamNumber: team.displayTeamNumber,
+    divisionCode: "",
+    divisionName: "",
+    homeRegion: team.homeRegion ?? team.homeCMP ?? null,
+    nameFull: team.nameFull,
+    nameShort: team.nameShort,
+    robotName: team.robotName,
+    schoolName: team.schoolName,
+    seasonId: seasonConfig.id,
+    sortSeed: index,
+    stateProv: team.stateProv,
+    teamNumber: team.teamNumber,
+    website: team.website,
+  };
+}
+
 function mapFtcTeams(teams: FtcTeam[]): QualifiedTeam[] {
   return [...teams]
     .sort((left, right) => left.teamNumber - right.teamNumber)
-    .map((team, index) => ({
-      city: team.city,
-      country: team.country,
-      displayTeamNumber: team.displayTeamNumber,
-      divisionCode: "",
-      divisionName: "",
-      homeRegion: team.homeRegion ?? team.homeCMP ?? null,
-      nameFull: team.nameFull,
-      nameShort: team.nameShort,
-      robotName: team.robotName,
-      schoolName: team.schoolName,
-      seasonId: seasonConfig.id,
-      sortSeed: index,
-      stateProv: team.stateProv,
-      teamNumber: team.teamNumber,
-      website: team.website,
-    }));
+    .map(mapFtcTeam);
 }
 
 function isChildOfChampionship(event: FtcEvent) {
@@ -87,9 +92,9 @@ async function resolveOfficialAssignments(baseTeams: QualifiedTeam[]) {
 
       return {
         division: {
-          code: `division-${String.fromCharCode(97 + index)}`,
+          code: getOfficialDivisionCode(event, index),
           displayOrder: index,
-          name: event.name ?? `Official Division ${index + 1}`,
+          name: getOfficialDivisionName(event, index),
           officialEventCode: event.code,
           seasonId: seasonConfig.id,
           status: "official" as const,
@@ -108,25 +113,37 @@ async function resolveOfficialAssignments(baseTeams: QualifiedTeam[]) {
     return null;
   }
 
+  const parentTeamLookup = new Map(baseTeams.map((team) => [team.teamNumber, team]));
   const divisionLookup = new Map<number, DivisionGroup>();
+  const assignedFtcTeams = new Map<number, FtcTeam>();
+
   for (const group of completeDivisions) {
     for (const team of group.teams) {
+      if (divisionLookup.has(team.teamNumber)) {
+        throw new Error(`Team ${team.teamNumber} appears in multiple official divisions.`);
+      }
+
       divisionLookup.set(team.teamNumber, group.division);
+      assignedFtcTeams.set(team.teamNumber, team);
     }
   }
 
-  if (divisionLookup.size !== baseTeams.length) {
+  if (!divisionLookup.size) {
     return null;
   }
 
-  return {
-    divisions: completeDivisions.map((item) => item.division),
-    hasOfficialAssignments: true,
-    teams: baseTeams.map((team, index) => {
-      const division = divisionLookup.get(team.teamNumber);
+  const assignedTeamNumbers = new Set(divisionLookup.keys());
+  const unassignedTeams = baseTeams.filter((team) => !assignedTeamNumbers.has(team.teamNumber));
+  const assignedTeams = Array.from(assignedTeamNumbers)
+    .sort((left, right) => left - right)
+    .map((teamNumber, index) => {
+      const division = divisionLookup.get(teamNumber);
+      const parentTeam = parentTeamLookup.get(teamNumber);
+      const ftcTeam = assignedFtcTeams.get(teamNumber);
+      const team = parentTeam ?? (ftcTeam ? mapFtcTeam(ftcTeam, index) : null);
 
-      if (!division) {
-        throw new Error(`Missing division assignment for team ${team.teamNumber}.`);
+      if (!division || !team) {
+        throw new Error(`Missing official division assignment data for team ${teamNumber}.`);
       }
 
       return {
@@ -136,7 +153,13 @@ async function resolveOfficialAssignments(baseTeams: QualifiedTeam[]) {
         officialEventCode: division.officialEventCode ?? null,
         sortSeed: index,
       };
-    }),
+    });
+
+  return {
+    divisions: completeDivisions.map((item) => item.division),
+    hasOfficialAssignments: true,
+    teams: assignedTeams,
+    unassignedTeams,
   } satisfies TeamPoolSyncResult;
 }
 
@@ -457,6 +480,7 @@ export async function runRosterSync(options?: { dryRun?: boolean }) {
       itemCount: syncResult.teams.length,
       metadata: {
         divisionStatus: syncResult.hasOfficialAssignments ? "official" : "provisional",
+        unassignedTeamCount: syncResult.unassignedTeams?.length ?? 0,
       },
       persisted: false,
       syncResult,
@@ -476,6 +500,7 @@ export async function runRosterSync(options?: { dryRun?: boolean }) {
       itemCount: syncResult.teams.length,
       metadata: {
         divisionStatus: syncResult.hasOfficialAssignments ? "official" : "provisional",
+        unassignedTeamCount: syncResult.unassignedTeams?.length ?? 0,
       },
       status: "success",
     });
@@ -484,6 +509,7 @@ export async function runRosterSync(options?: { dryRun?: boolean }) {
       itemCount: syncResult.teams.length,
       metadata: {
         divisionStatus: syncResult.hasOfficialAssignments ? "official" : "provisional",
+        unassignedTeamCount: syncResult.unassignedTeams?.length ?? 0,
       },
       persisted: true,
       syncResult,

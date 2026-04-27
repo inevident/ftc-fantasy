@@ -6,7 +6,8 @@ import { isAuthorizedSyncRequest } from "@/lib/sync-route-auth";
 
 function parseDryRun(request: Request) {
   const url = new URL(request.url);
-  return url.searchParams.get("dryRun") === "true";
+  const value = url.searchParams.get("dryRun")?.toLowerCase();
+  return value === "1" || value === "true" || value === "yes";
 }
 
 export async function GET() {
@@ -44,6 +45,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       divisionStatus: result.metadata.divisionStatus,
       itemCount: result.itemCount,
+      metadata: result.metadata,
       persisted: result.persisted,
     });
   } catch (error) {

@@ -25,6 +25,18 @@ function isMissingTableError(error: unknown) {
   return code === "42P01" || code === "PGRST205";
 }
 
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (error && typeof error === "object" && "message" in error) {
+    return String(error.message);
+  }
+
+  return "Unknown error";
+}
+
 function createEmptyPool(message?: string): TeamPool {
   return {
     divisions: [],
@@ -199,19 +211,43 @@ async function getDatabaseSeasonPool(): Promise<TeamPool | null> {
 
 export async function getSeasonPool() {
   if (hasSupabaseConfig()) {
-    const databasePool = await getDatabaseSeasonPool();
-    if (databasePool) {
-      return databasePool;
+    try {
+      const databasePool = await getDatabaseSeasonPool();
+      if (databasePool) {
+        return databasePool;
+      }
+    } catch (error) {
+      const databaseMessage = `Supabase sync cache is temporarily unavailable: ${getErrorMessage(error)}`;
+
+      if (hasFtcApiConfig()) {
+        try {
+          const livePool = await resolveLiveTeamPool();
+          return {
+            ...livePool,
+            message: `${databaseMessage}. Showing a live FTC preview instead.`,
+          };
+        } catch (livePreviewError) {
+          return createEmptyPool(
+            `${databaseMessage}. FTC live preview also failed: ${getErrorMessage(livePreviewError)}`,
+          );
+        }
+      }
+
+      return createEmptyPool(databaseMessage);
     }
   }
 
   if (hasFtcApiConfig()) {
-    const livePool = await resolveLiveTeamPool();
-    return {
-      ...livePool,
-      message:
-        "Showing a live FTC preview because the Supabase tables are empty or not yet migrated.",
-    };
+    try {
+      const livePool = await resolveLiveTeamPool();
+      return {
+        ...livePool,
+        message:
+          "Showing a live FTC preview because the Supabase tables are empty or not yet migrated.",
+      };
+    } catch (error) {
+      return createEmptyPool(`FTC live preview is temporarily unavailable: ${getErrorMessage(error)}`);
+    }
   }
 
   return createEmptyPool(getSetupChecklist().join(" "));

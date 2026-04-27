@@ -9,7 +9,8 @@ import { getSeasonPool } from "@/lib/data";
 import { validateEntrySelection } from "@/lib/fantasy/divisions";
 import { ensureProfileForUser } from "@/lib/profile";
 import type { ActionState } from "@/lib/types";
-import { buildInviteCode, normalizeNextPath, uniqueNumbers } from "@/lib/utils";
+import { buildInviteCode, normalizeInviteCode, normalizeNextPath, uniqueNumbers } from "@/lib/utils";
+import { resolveRequestOrigin } from "@/lib/auth/oauth";
 import { createClient } from "@/utils/supabase/server";
 
 const idleActionState: ActionState = { status: "idle" };
@@ -57,7 +58,10 @@ export async function requestMagicLinkAction(
     };
   }
 
-  const origin = (await headers()).get("origin") ?? "http://localhost:3000";
+  const requestHeaders = await headers();
+  const requestHost = requestHeaders.get("host") ?? "localhost:3000";
+  const requestProto = requestHost.startsWith("localhost") ? "http" : "https";
+  const origin = resolveRequestOrigin(requestHeaders, `${requestProto}://${requestHost}`);
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
@@ -147,7 +151,7 @@ export async function joinLeagueAction(
   formData: FormData,
 ): Promise<ActionState> {
   void previousState;
-  const inviteCode = String(formData.get("inviteCode") ?? "").trim().toUpperCase();
+  const inviteCode = normalizeInviteCode(String(formData.get("inviteCode") ?? ""));
 
   if (!inviteCode) {
     return { message: "Enter an invite code.", status: "error" };
@@ -172,7 +176,7 @@ export async function joinLeagueAction(
 }
 
 export async function joinLeagueDirectAction(formData: FormData) {
-  const inviteCode = String(formData.get("inviteCode") ?? "").trim().toUpperCase();
+  const inviteCode = normalizeInviteCode(String(formData.get("inviteCode") ?? ""));
   const result = await joinLeagueAction(idleActionState, formData);
 
   if (result.status === "error") {
@@ -245,7 +249,7 @@ export async function createOrOpenEntryAction(
 }
 
 export async function createOrOpenEntryDirectAction(formData: FormData) {
-  const leagueCode = String(formData.get("leagueCode") ?? "").trim();
+  const leagueCode = normalizeInviteCode(String(formData.get("leagueCode") ?? ""));
   const result = await createOrOpenEntryAction(idleActionState, formData);
 
   if (result.status === "error") {
